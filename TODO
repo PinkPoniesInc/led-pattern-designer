@@ -1,0 +1,10 @@
+In general an animation is defined in terms of the following:
+
+- start with whole strip 1 color
+- define a pattern of arbitrary length using colors & intensities
+- define a position of a pattern over time
+- define a blend mode of a pattern with the existing colors
+- optionally: allow definition of blend mode over time (to be determined how useful this is)
+- once the animation is over, define the state of the led strip as the end result of the blend
+- start over
+

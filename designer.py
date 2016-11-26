@@ -101,21 +101,18 @@ class Animation():
         print('Finished animation %s' % type(self).__name__)
 
 class BasicAnimation(Animation):
-    def __init__(self):
-        pass
+    def __init__(self, color):
+        self.color = color
 
     def pattern(self, frame):
-        black = (0,0,0)
-        blue = (0,0,255)
-        
         period = 10
         on = 0
         while True:
             for i in range(period):
                 if i <= on:
-                    yield blue
+                    yield self.color
                 else:
-                    yield black
+                    yield None
             on += 1
 
     def position(self, frame):
@@ -130,36 +127,65 @@ class AnimationDirector():
 
         self.scheduled_animations = []
         self.active_animation_frames = []
+        self.active_patterns = []
 
     def add_animation(self, start_frame, animation):
         self.scheduled_animations.append( (start_frame, animation) )
 
+    def _blend_patterns(self, current_led_colors, active_patterns):
+        blended_pattern = current_led_colors[:]
+
+        for pattern in active_patterns:
+            for i, color in enumerate(pattern):
+                if color:
+                    blended_pattern[i] = color
+
+        return blended_pattern
+
     def _update_leds(self):
         new_active_animation_frames = [anim.frames(self.led_display.nr_of_leds) for start_frame, anim in self.scheduled_animations if start_frame == self.frame]
         self.active_animation_frames.extend(new_active_animation_frames)
+        self.active_patterns.extend([None] * len(new_active_animation_frames))
 
+        # Try to update the pattern for each active animation, or set the
+        # frame_generator to None if the animation has ended
+        for i, frame_generator in enumerate(self.active_animation_frames):
+            if frame_generator:
+                try:
+                    self.active_patterns[i] = next(frame_generator)
+
+                except StopIteration:
+                    self.active_animation_frames[i] = None
+        
+        # Collect the finished animations up to the first one that has not
+        # ended for blending into self.led_colors. Finished animations after
+        # active ones must not be blended into self.led_colors, because they
+        # must be applied on top of active ones.
         finished_animations = []
         for i, frame_generator in enumerate(self.active_animation_frames):
-            try:
-                pattern = next(frame_generator)
-
-                # TODO: blend multiple patterns
-                for i, color in enumerate(pattern):
-                    if color:
-                        self.led_colors[i] = color
-
-            except StopIteration:
+            if not frame_generator:
                 finished_animations.append(i)
-            
+            else:
+                break
 
+        # Remove the active animation and pattern entry for finished animations
+        # and add the final pattern to a list
+        finished_patterns = []
         for i in reversed(finished_animations):
             del self.active_animation_frames[i]
+            finished_patterns.insert(0, self.active_patterns[i])
+            del self.active_patterns[i]
 
-        self.led_display.set_leds(self.led_colors)
+        # Blend all finished animations into self.led_colors state
+        self.led_colors = self._blend_patterns(self.led_colors, finished_patterns)
+
+        # Blend the rest of the animations and send the final colors to the leds
+        final_colors = self._blend_patterns(self.led_colors, self.active_patterns)
+
+        self.led_display.set_leds(final_colors)
         self.frame += 1
         print('frame %d' % self.frame)
         root.after(self.frame_duration, self._update_leds)
-
 
     def run_script(self):
         self.active_animations = []
@@ -171,7 +197,8 @@ root = Tk()
 led_image_factory = LedImageFactory('images/led_light_edge.gif')
 led_display = LedDisplay(root, led_image_factory, nr_of_leds = 100)
 director = AnimationDirector(led_display, frame_duration = 5)
-director.add_animation(50, BasicAnimation())
+director.add_animation(50, BasicAnimation((0,0,255)))
+director.add_animation(100, BasicAnimation((255,0,0)))
 director.run_script()
 
 root.mainloop()

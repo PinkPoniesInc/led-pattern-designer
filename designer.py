@@ -91,6 +91,7 @@ class Animation():
 
             pattern = list(itertools.islice(self.pattern(frame_nr), startpos, endpos))
             pattern.reverse()
+            pattern = (pattern + [None] * nr_of_leds)[:nr_of_leds]
 
             if pattern == previous_pattern:
                 break
@@ -117,6 +118,14 @@ class BasicAnimation(Animation):
 
     def position(self, frame):
         return frame
+
+class ReversedAnimation(Animation):
+    def __init__(self, anim):
+        self.anim = anim
+
+    def frames(self, nr_of_leds):
+        for pattern in self.anim.frames(nr_of_leds):
+            yield list(reversed(pattern))
 
 class AnimationDirector():
     def __init__(self, led_display, frame_duration = 5):
@@ -198,7 +207,7 @@ led_image_factory = LedImageFactory('images/led_light_edge.gif')
 led_display = LedDisplay(root, led_image_factory, nr_of_leds = 100)
 director = AnimationDirector(led_display, frame_duration = 5)
 director.add_animation(50, BasicAnimation((0,0,255)))
-director.add_animation(100, BasicAnimation((255,0,0)))
+director.add_animation(100, ReversedAnimation(BasicAnimation((255,0,0))))
 director.run_script()
 
 root.mainloop()
